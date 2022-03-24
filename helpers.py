@@ -155,7 +155,7 @@ def treatYear(newspaper: Newspaper, year: int, dataFolder: str, resultFolder: st
 
 ### FUNCTIONS FOR NER 
 
-def get_nb_dates(doc,show = True):
+def get_nb_dates(doc,show = True, spacy = True):
     """
     Arguments : 
         - doc : the processed spaCy document from which to get the number of dates appearing in it
@@ -163,16 +163,19 @@ def get_nb_dates(doc,show = True):
     Return :
         - # of dates appearing in the doc
     """
-    nb_dates = [ e for e in doc.ents if e.label_ == "DATE"]
-
-
+    # For spacy :
+    nb_dates = []
+    if spacy:
+        nb_dates = [ e for e in doc.ents if e.label_ == "DATE"] # Spacy pipeline
+    else:
+        nb_dates = [ e for e in doc if e["entity_group"] == "DATE"] # Hugging face pipeline
     if bool(nb_dates) and show:
         print("Example of date for this article: ",nb_dates[0])
 
         
     return len(nb_dates)
 
-def get_dates_from_file(filepath, pipeline, rt = 0.75,lt = 15): 
+def get_dates_from_file(filepath, pipeline,spacy, rt = 0.75,lt = 15 ): 
     """
     Arguments : 
         - filepath : path of the file 
@@ -190,6 +193,6 @@ def get_dates_from_file(filepath, pipeline, rt = 0.75,lt = 15):
     date  = datetime.strptime(filepath[-14:-4], "%Y\\%m\\%d")
     df = pd.read_csv(filepath)
     filtered_df = df[(df.Length > lt) & (df.Ratio > rt)]
-    processed_docs = [pipeline(block) for block in list(filtered_df["Block"])]
-    nb_dates = sum([get_nb_dates(doc, show = False) for doc in processed_docs])
+    processed_docs = [pipeline(block) for block in list(filtered_df["Text"])]
+    nb_dates = sum([get_nb_dates(doc, show = False, spacy = spacy) for doc in processed_docs])
     return date,nb_dates
