@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from nltk.tokenize import word_tokenize
 from tqdm import tqdm
 import numpy as np 
+from glob import glob
 import enchant
 from typing import List
 from collections import deque
@@ -22,7 +23,25 @@ class Newspaper(ABC):
         pass 
     def getBlocks(self,path):
         pass
-    def checkYear(self,path): return  Path(path).exists()
+    
+    def xmlParser(self,path): 
+        doc = xml.parse(path)
+        blocks = []
+        for block in doc.getElementsByTagName("TextBlock"):
+            bl = []
+            for line in block.getElementsByTagName('TextLine'):
+                l = []
+                for content in line.getElementsByTagName("String"):
+                    l.append(content.getAttribute("CONTENT"))
+                bl.append(" ".join(l))
+            blocks.append(" ".join(bl))
+        tokenized_blocks = [np.array([s for s in word_tokenize(block) if s.isalnum()]) for block in blocks]
+        return tokenized_blocks
+
+    def checkPath(self,path):
+        print(path)
+        files = glob(path + "*")
+        return len(files) > 0
     def compute_ratio(self,tokenized_text: List[List[str]], dictionnary: enchant.Dict):
         nb_words = len(tokenized_text)
         nb_OoV = len([word for word in tokenized_text if not dictionnary.check(word)]) # Number of Out-of-Vocabulary elements
@@ -48,7 +67,7 @@ class Newspaper(ABC):
 
     def treatDate(self,date,dataFolder, resultFolder, show = True ):
         path = self.pathFromDate(date,dataFolder)
-        if self.checkYear(path):
+        if self.checkPath(path):
             results = self.treat_file(path)
             if len(results) > 0: 
                 if show : print(f"Average ratio for {date} : ",sum([b for (a,b,c) in results])/len(results))
@@ -93,20 +112,6 @@ class NYT(Newspaper):
     name = "NYT"
     language = 'en'
     dictionnary = enchant.Dict(language)
-    def xmlParser(self,path): 
-        doc = xml.parse(path)
-        blocks = []
-        for block in doc.getElementsByTagName("TextBlock"):
-            bl = []
-            for line in block.getElementsByTagName('TextLine'):
-                l = []
-                for content in line.getElementsByTagName("String"):
-                    l.append(content.getAttribute("CONTENT"))
-                bl.append(" ".join(l))
-            blocks.append(" ".join(bl))
-        tokenized_blocks = [np.array([s for s in word_tokenize(block) if s.isalnum()]) for block in blocks]
-        return tokenized_blocks
-
     def pathFromDate(self,date,folder):
         return folder + "//" + date.strftime("%Y") + "//"+   date.strftime("%m")  + "//" +date.strftime("%d")
     
@@ -139,6 +144,29 @@ class Imparcial(Newspaper):
                 )
         return ret
 
+class Berlin(Newspaper):
+    
+    name = "Berlin"
+    language = 'de'
+    dictionnary = enchant.Dict(language)
+
+    def pathFromDate(self,date,folder):
+        year = date.strftime("%Y")
+        yearfile = date.strftime("%Y%m%d")
+        return folder + "//" + year + '//' + "F_SBB_00001_" + yearfile
+    def getBlocks(self,path):
+        folder = path[:-22]
+        blocks = []
+        for _,_,files in os.walk(folder):
+            for file in files:
+                if file.startswith(path[27:]):
+
+                    blocks += self.xmlParser(folder + "//" + file)
+        return blocks
+    def checkPath(self,path):
+        files = glob(path + "*")
+        return len(files) > 0
+
 
 def yearGenerator(year):
     start_date = datetime(year,1,1)
@@ -149,7 +177,9 @@ def yearGenerator(year):
         ret.append(start_date) 
         start_date += delta
     return ret
+    
 def treatYear(newspaper: Newspaper, year: int, dataFolder: str, resultFolder: str):
+
     for day in tqdm(yearGenerator(year)):
         newspaper.treatDate(day,dataFolder,resultFolder, False)
 
