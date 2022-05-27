@@ -205,7 +205,7 @@ def get_nb_dates(doc,show = True, spacy = True):
         
     return len(nb_dates)
 
-def get_dates_from_file(filepath, pipeline,spacy, rt = 0.75,lt = 15 ): 
+def     get_dates_from_file(filepath, pipeline,spacy, rt = 0.75,lt = 15 ): 
     """
     Arguments : 
         - filepath : path of the file 
