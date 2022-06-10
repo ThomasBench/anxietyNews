@@ -223,7 +223,8 @@ def get_dates_from_file(filepath, pipeline,spacy, rt = 0.75,lt = 15 ):
     """
     date  = datetime.strptime(filepath[-14:-4], "%Y\\%m\\%d")
     df = pd.read_csv(filepath)
-    filtered_df = df[(df.Length > lt) & (df.Ratio > rt)].sample(min(15, len(df)))
+    filtered_df = df[(df.Length > lt) & (df.Ratio > rt)]
+    filtered_df = filtered_df.sample(min(15, len(filtered_df)))
     processed_docs = [pipeline(block) for block in list(filtered_df["Text"])]
     nb_dates = sum([get_nb_dates(doc, show = False, spacy = spacy) for doc in processed_docs])
     return date,nb_dates
