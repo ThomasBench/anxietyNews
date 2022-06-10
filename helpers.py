@@ -1,3 +1,4 @@
+from doctest import DocFileSuite
 import xml.dom.minidom as xml
 import pandas as pd 
 from datetime import datetime, timedelta
@@ -39,7 +40,7 @@ class Newspaper(ABC):
         return tokenized_blocks
 
     def checkPath(self,path):
-        print(path)
+        # print(path)
         files = glob(path + "*")
         return len(files) > 0
     def compute_ratio(self,tokenized_text: List[List[str]], dictionnary: enchant.Dict):
@@ -87,9 +88,9 @@ class Figaro(Newspaper):
     def isTitle(self,text:str, threshold = 40):
         return len(text) <= threshold
 
-    def pathFromDate(self,date,folder):
+    def pathFromDate(self,date: datetime,folder):
         datepath = date.strftime("%Y%m%d")
-        return folder + "//" + datepath + "//" + datepath  + ".metadata.fulltext.json"
+        return folder + "//" + str(date.year) +  "//" + datepath + "//" + datepath  + ".metadata.fulltext.json"
 
     def getBlocks(self,path):
         with open(path, encoding= "utf-8") as f:
@@ -107,9 +108,9 @@ class Figaro(Newspaper):
                 current_article += b 
         return ret
 
-class NYT(Newspaper):
+class NYH(Newspaper):
 
-    name = "NYT"
+    name = "NYH"
     language = 'en'
     dictionnary = enchant.Dict(language)
     def pathFromDate(self,date,folder):
@@ -205,7 +206,7 @@ def get_nb_dates(doc,show = True, spacy = True):
         
     return len(nb_dates)
 
-def     get_dates_from_file(filepath, pipeline,spacy, rt = 0.75,lt = 15 ): 
+def get_dates_from_file(filepath, pipeline,spacy, rt = 0.75,lt = 15 ): 
     """
     Arguments : 
         - filepath : path of the file 
@@ -222,7 +223,7 @@ def     get_dates_from_file(filepath, pipeline,spacy, rt = 0.75,lt = 15 ):
     """
     date  = datetime.strptime(filepath[-14:-4], "%Y\\%m\\%d")
     df = pd.read_csv(filepath)
-    filtered_df = df[(df.Length > lt) & (df.Ratio > rt)]
+    filtered_df = df[(df.Length > lt) & (df.Ratio > rt)].sample(min(15, len(df)))
     processed_docs = [pipeline(block) for block in list(filtered_df["Text"])]
     nb_dates = sum([get_nb_dates(doc, show = False, spacy = spacy) for doc in processed_docs])
     return date,nb_dates
