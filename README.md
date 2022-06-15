@@ -17,3 +17,5 @@ In this repo are :
 - 2. the OCR assessment notebook that was used to assess the OCR quality of each pre-processed file.
 - 3. The NER predictions notebook that was used to detect dates in the pre-processed files.
 - 4. The Ner assessment notebook that was used to assess the NER date detections method.
+
+All required python libraries can be read in the requirements.txt file
