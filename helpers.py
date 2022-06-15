@@ -13,11 +13,12 @@ from sklearn.metrics import r2_score
 from collections import deque
 import json
 import os
+from os import path
 from abc import ABC
 from pathlib import Path
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go 
-
+from calendar import monthrange
 
 ### Functions to access the result files
 
@@ -207,6 +208,28 @@ def treatYear(newspaper: Newspaper, year: int, dataFolder: str, resultFolder: st
     for day in tqdm(yearGenerator(year)):
         newspaper.treatDate(day,dataFolder,resultFolder, False)
 
+
+def count_missing_dates(result_folder:str,year_range: list):
+    result = []
+    for year in year_range:
+        for month in range(1,13):
+            _ , nb_days = monthrange(year,month)
+            prop_missing = 0
+            nb_missing = 0
+            month_path = result_folder + f"/{year}/{month:02d}"
+            if path.isdir(month_path):
+                for day in range(1,nb_days+1):
+                    day_path = month_path + f"/{day:02d}.csv"
+                    if not path.isfile(day_path):
+                        nb_missing +=1                        
+                prop_missing = nb_missing/nb_days
+            else:
+                prop_missing = 1
+            result.append((year,month,prop_missing))
+    res = pd.DataFrame(result, columns = ["Year", "Month", "missing_prop"])
+    return res
+            
+
 ### FUNCTIONS FOR NER 
 
 def get_nb_dates(doc,show = True, spacy = True):
@@ -311,7 +334,23 @@ def plot_dfs_wr(dfs):
         print(f"R2 score for the newspaper {name} : {r2}")
         plt.show()
 
+def plot_missing_dates(df):
+    df["date"] = pd.to_datetime(df['Year'].astype(str)  +  df['Month'].astype(str), format='%Y%m')
+    beg_year = df["date"].min().year
+    end_year = df["date"].max().year
 
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x = df["date"],
+            y = df["missing_prop"].rolling(5).mean(),
+            # line_shape = "spline"
+        )
+    )
+    fig.update_layout(template = "none", title = f"Missing Le Figaro issues proportion per month between {beg_year} and {end_year}",font_size = 15)
+    fig.update_xaxes(title = "Date")
+    fig.update_yaxes(title = "Missing proportion per month")
+    fig.show()
 
 def plot_ner_results(result_folder):
     dfs = []
