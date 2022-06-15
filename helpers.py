@@ -8,11 +8,34 @@ import numpy as np
 from glob import glob
 import enchant
 from typing import List
+import scipy.optimize as opt
+from sklearn.metrics import r2_score
 from collections import deque
 import json
 import os
 from abc import ABC
 from pathlib import Path
+import matplotlib.pyplot as plt
+import plotly.graph_objects as go 
+
+
+### Functions to access the result files
+
+def get_df_from_path(path):
+    all_files= glob(path + "/*/*.csv")
+    li = []
+    for file in all_files:
+        date = file.split("/")[-1].split(".")[0]
+        temp_df = pd.read_csv(file)
+        temp_df["Date"] = date
+        li.append(temp_df)
+    df = pd.concat(li, axis=0, ignore_index=True)
+    df = df[(df["Length"] > 0) & (df["Ratio"] > 0 )& (df["Ratio"]<1)]
+    return df
+
+
+
+
 ### Classes to treat and compute OCR for each newspaper 
 
 
@@ -228,3 +251,87 @@ def get_dates_from_file(filepath, pipeline,spacy, rt = 0.75,lt = 15 ):
     processed_docs = [pipeline(block) for block in list(filtered_df["Text"])]
     nb_dates = sum([get_nb_dates(doc, show = False, spacy = spacy) for doc in processed_docs])
     return date,nb_dates
+
+
+
+def get_dates_from_year_range(year_range, source_folder, result_folder, model, useSpacy):
+    beginning_year , ending_year = year_range
+    for year in range(beginning_year, ending_year):
+        results = []
+        folder = source_folder  + f"{year}"
+        for file in tqdm(glob(folder + "/*/*.csv")):        # Compute the nb of dates
+            date, nb_dates = get_dates_from_file(file,model,useSpacy,rt = 0.75, lt = 15)
+            results.append((date,nb_dates,pd.read_csv(file)["Length"].sum()))
+        df = pd.DataFrame(results, columns = ["Date", "Number of dates", "length"])
+        df.to_csv(result_folder + f"{year}.csv", index= False)
+### Plotting functions
+
+def plot_dfs_hist(dfs):
+    plt.figure(figsize=(8, 6))
+
+    for (df,name) in dfs:
+        arr = df["Ratio"]
+        weights = np.ones_like(arr)/float(len(arr))
+        plt.hist(x = arr, bins = 20, alpha = 0.4, label = name, weights = weights)
+    plt.title("Distribution of word ratio per newspaper")
+    plt.xlabel("Word ratio")
+    plt.ylabel("Frequency")
+    plt.legend()
+    plt.savefig('histo.png')
+    plt.show()
+
+
+def plot_dfs_wr(dfs):
+
+    def f(x,a,b): 
+        if isinstance(x,pd.Series) or isinstance(x,np.ndarray):
+            y = []
+            for elem in x:
+               y.append( a*np.log(elem) + b if elem != 0 else b)
+            return y
+        else:
+            return a*np.log(x) + b if x != 0 else b
+    
+    for (df, name )in dfs:
+        x = df["Length"]
+        y = df["Ratio"]
+        a, _ = opt.curve_fit(f,x,y)
+        y_pred = f(x,a[0], a[1])
+        r2 = r2_score(y,y_pred)
+        plt.figure(figsize=(8, 6))
+
+        plt.scatter(x = x, y = y,label = name, alpha = 0.3)
+        x = np.linspace(0, max(x), num=5000)
+        plt.plot(x, f(x,a[0], a[1]), c = "red")
+        plt.title(f"Word ratio w.r.t. document length for the newspaper {name}")
+        plt.xlabel("Length")
+        plt.ylabel("Word ratio")
+        plt.legend(["Text Block", "regression: $y = log({:0.3f}*x) + {:0.3}".format(a[0], a[1])])
+        plt.savefig(f'dwr{name}.png')
+        print(f"R2 score for the newspaper {name} : {r2}")
+        plt.show()
+
+
+
+def plot_ner_results(result_folder):
+    dfs = []
+    for file in glob(result_folder  + "*.csv"):
+        dfs.append(pd.read_csv(file))
+    final_df = pd.concat(dfs)
+    final_df = final_df.drop_duplicates()
+    final_df["ratio"]= (final_df["Number of dates"]/final_df["length"]).rolling(window = 60).mean()
+    # final_df["ratio"].plot()
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x = final_df["Date"],
+        y = final_df["ratio"],
+        mode = "lines"
+        
+    ))
+    fig.update_layout(
+        template = "none", 
+        title = "Date ratio from 1875 to 1920 in the French newspaper Le Figaro"
+    )
+    fig.update_xaxes(title = "Dates")
+    fig.update_yaxes(title = "Date ratio" )
+    fig.show()
